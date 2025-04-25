@@ -1,4 +1,4 @@
-''' Client code for the chat server, which interacts with the server to send and receive messages '''
+''' Client Program to join the UDP broadcast, acting as a P2P client. '''
 
 import socket
 import threading
