@@ -14,7 +14,7 @@ from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 
 ### Identify Verification (Message Signatures)
 
-**Ud25519** is fast and secure, being widely used in applications such as Signal and OpenSSH. Signs a message before sending with the recipient verifying the signature.
+**Ed25519** is fast and secure, being widely used in applications such as Signal and OpenSSH. Signs a message before sending with the recipient verifying the signature.
 
 ```python
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
