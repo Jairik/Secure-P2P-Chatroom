@@ -1,25 +1,35 @@
-''' Constants such as ports, IPs, keys '''
+''' Constants such as port numbers, IP addresses, and keys '''
 
 import os  # For random key generation
 import socket  # For determining the local IP address
+import psutil  # For retreiving the broadcasecast address
+import ipaddress
 
-# Defining script to get the local IP address
-def get_local_ip():
-    """Get the local IP address."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # Create a UDP socket
-    try:
-        s.connect(("8.8.8.8", 80))  # Connect to a public DNS server (Google DNS)
-        ip = s.getsockname()[0]  # Get the local IP address
-    except Exception:
-        ip = '127.0.0.1'  # Fallback to localhost if a socket error occurs
-    finally:
-        s.close()  # Close the socket
-    return ip  # Return the local IP address
+# Get the broadcast address
+def get_ip_addresses():
+    """Get the broadcast address and the local IP address of the local network."""
+    # Get all network interfaces and their addresses
+    addrs = psutil.net_if_addrs()
+    
+    # Loop through each interaface and its addresses (finds the first private one)
+    for iface_name, iface_addresses in addrs.items():
+        for addr in iface_addresses:
+            if addr.family == socket.AF_INET:  # Only consider IPv4 addresses
+                ip = addr.address
+                netmask = addr.netmask
+                # Only proceed if it's a private (local) IP address
+                if ip.startswith('192.') or ip.startswith('10.') or ip.startswith('172.'):
+                    ip_network = ipaddress.IPv4Network(f"{ip}/{netmask}", strict=False)
+                    broadcast_ip = str(ip_network.broadcast_address)
+                    print(f"Found local IP: {ip}, Broadcast IP: {broadcast_ip}")
+                    return ip, broadcast_ip  # Return the local IP and broadcast address
+    
+    print("No suitable network interface found, attempting to run default.")
+    return None, '255.255.255.255'  # Fallback
     
 # Network Settings
-SERVER_IP = get_local_ip()  # Get the local IP address
+SERVER_IP, GLOBAL_BROADCAST_IP = get_ip_addresses()  # Get the local IP and global broadcast address
 SERVER_PORT = 5000  # Port for the server to listen on (any number above 1024, conventionally 5000)
-GLOBAL_BROADCAST_IP = '255.255.255.255'  # Port for broadcasting messages to all clients
 
 # Setting buffer size to determine the maximum amount of data to be sent in one go
 BUFFER_SIZE = 4096 

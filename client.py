@@ -6,7 +6,7 @@ import sys
 import config  # Importing to access constant keys/settings
 
 # Connect client to server
-print(f"Client started... connected to {config.SERVER_IP}:{config.SERVER_PORT}")
+print(f"Client started... host={config.SERVER_IP}:{config.SERVER_PORT}")
 
 # Create, connect, and validate UDP socket constant IP and port in config.py
 try:
@@ -31,8 +31,10 @@ def listen_for_messages():
     while True:
         try:
             message, address = client_socket.recvfrom(1024)  # Receive message from server
+            decoded_message = message.decode('utf-8')
             # Add decryption methods (& signature verification) here
-            print(f"Server: {message.decode('utf-8')}")  # TODO: Get the sender's username from the message
+            if not decoded_message.startswith(username + ": "):  # Ignore messages from self
+                print(f"Server: {decoded_message}")  # TODO: Get the sender's username from the message
         except Exception as e:
             print(f"Error receiving message: {e}")
             break
@@ -45,10 +47,12 @@ listener_thread.start()
 # TODO: when connected, send message that the user has joined the chat
 try:
     while True:
-        message = input("You: ")
+        message = input(f"{username}: ")
         if message.lower() == 'exit':
             print("Exiting chat...")
             break
+        # Add username to message
+        message = f"{username}: {message}"
         # Perform encryption methods (& signature) here
         try:
             client_socket.sendto(message.encode('utf-8'), (config.GLOBAL_BROADCAST_IP, config.SERVER_PORT))
