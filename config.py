@@ -19,6 +19,7 @@ def get_local_ip():
 # Network Settings
 SERVER_IP = get_local_ip()  # Get the local IP address
 SERVER_PORT = 5000  # Port for the server to listen on (any number above 1024, conventionally 5000)
+GLOBAL_BROADCAST_IP = '255.255.255.255'  # Port for broadcasting messages to all clients
 
 # Setting buffer size to determine the maximum amount of data to be sent in one go
 BUFFER_SIZE = 4096 

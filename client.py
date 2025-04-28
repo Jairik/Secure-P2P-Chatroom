@@ -11,11 +11,12 @@ print(f"Client started... connected to {config.SERVER_IP}:{config.SERVER_PORT}")
 # Create, connect, and validate UDP socket constant IP and port in config.py
 try:
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # create UDP socket
-    client_socket.connect((config.SERVER_IP, config.SERVER_PORT))  # connect to server
+    client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)  # Enable broadcast
+    client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Enable reuse of address
+    client_socket.bind(('', config.SERVER_PORT))  # Bind to all interfaces on the port
     print(f"Successfully created socket to connect to server")
 except socket.error as e:  # Socket creation error, exit
     print(f"Failed to create and create socket: {e}")
-    print("Check firewall settings, try again later, or try running with sudo.")
     sys.exit(1)
     
 # Get & validate the user's username
@@ -29,9 +30,9 @@ if not username:
 def listen_for_messages():
     while True:
         try:
-            message, _ = client_socket.recvfrom(1024)  # Receive message from server
+            message, address = client_socket.recvfrom(1024)  # Receive message from server
             # Add decryption methods (& signature verification) here
-            print(f"Server: {message.decode('utf-8')}")
+            print(f"Server: {message.decode('utf-8')}")  # TODO: Get the sender's username from the message
         except Exception as e:
             print(f"Error receiving message: {e}")
             break
@@ -49,7 +50,11 @@ try:
             print("Exiting chat...")
             break
         # Perform encryption methods (& signature) here
-        client_socket.sendto(message.encode('utf-8'), (config.SERVER_IP, config.SERVER_PORT))
+        try:
+            client_socket.sendto(message.encode('utf-8'), (config.GLOBAL_BROADCAST_IP, config.SERVER_PORT))
+        except socket.error as e:
+            print(f"Error sending message: {e}")
+            break
 except KeyboardInterrupt:
     print("\nExiting chat...")
 
