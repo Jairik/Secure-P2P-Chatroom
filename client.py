@@ -3,10 +3,13 @@
 import socket
 import threading
 import sys
-import config  # Importing to access constant keys/settings
+import time
+import struct  # For packing and unpacking binary data and allowing multicasting groups
+import config  # Access constant keys/settings
 
 # Connect client to server
 print(f"Client started... host={config.SERVER_IP}:{config.SERVER_PORT}")
+known_peers = set()  # store known peers (other clients)
 
 # Create, connect, and validate UDP socket constant IP and port in config.py
 try:
@@ -20,7 +23,7 @@ except socket.error as e:  # Socket creation error, exit
     sys.exit(1)
     
 # Get & validate the user's username
-username = input("Enter your username: ")
+username = input("Enter your username: ").strip()
 if not username:
     print("Username cannot be empty. Exiting...")
     client_socket.close()
@@ -31,17 +34,46 @@ def listen_for_messages():
     while True:
         try:
             message, address = client_socket.recvfrom(1024)  # Receive message from server
-            decoded_message = message.decode('utf-8')
+            decoded_message = message.decode('utf-8')  # Retrieve decoded message
+            sender_ip, _ = address # Derive the sender ip from address
             # Add decryption methods (& signature verification) here
-            if not decoded_message.startswith(username + ": "):  # Ignore messages from self
-                print(f"Server: {decoded_message}")  # TODO: Get the sender's username from the message
+            # Check for new peers
+            if decoded_message.startswith('HEARTBEAT:'):  # Check if the message is encrypted
+                    new_username = decoded_message.split(':', 1)[1]  # Extract the username from the message
+                    # Add the new peer to list of known peers
+                    if new_username not in known_peers:
+                        known_peers.add(new_username)
+                        print(f"Welcome {new_username} to the chat!")
+            elif not decoded_message.startswith(username + ": "):  # Ignore own messages
+                print(f"\n{decoded_message}")  # Print the message
+            else:  # Message is from self, continue
+                continue
+                    
         except Exception as e:
             print(f"Error receiving message: {e}")
+            break
+        
+# Declare discovery loop that checks for new peers
+def discovery_loop():
+    while True:
+        try:
+            # Send a discovery message to the broadcast address
+            discovery_message = f"HEARTBEAT:{username}"
+            # !! NOTE: Add encryption methods (& signature) here
+            client_socket.sendto(discovery_message.encode('utf-8'), (config.GLOBAL_BROADCAST_IP, config.SERVER_PORT))
+            # Wait for a while before sending the next discovery message
+            time.sleep(3)  # Broadcast every 3 seconds
+        except Exception as e:
+            print(f"Error in discovery loop: {e}")
             break
 
 # Start a thread to listen for incoming messages
 listener_thread = threading.Thread(target=listen_for_messages, daemon=True)
 listener_thread.start()
+
+# Start a thread for the discovery loop
+discovery_thread = threading.Thread(target=discovery_loop, daemon=True)
+discovery_thread.start()
 
 # Main loop to send messages to the server
 # TODO: when connected, send message that the user has joined the chat

@@ -30,6 +30,8 @@ def get_ip_addresses():
 # Network Settings
 SERVER_IP, GLOBAL_BROADCAST_IP = get_ip_addresses()  # Get the local IP and global broadcast address
 SERVER_PORT = 5000  # Port for the server to listen on (any number above 1024, conventionally 5000)
+MCAST_PORT = 5000
+MCAST_GRP = '224.1.1.1'  # Multicast group address shared among all clients
 
 # Setting buffer size to determine the maximum amount of data to be sent in one go
 BUFFER_SIZE = 4096 
