@@ -47,22 +47,33 @@ if not username:
 known_peers = set()  # declare set to store known peers (other clients)
 
 # Declare listener for messages from other clients
-def listen_for_messages():
+def listen_for_messages() -> None:
     ''' Listen for incoming messages from other clients,  '''
     while True:
         try:
+            
             # Receive message from the multicast group
-            encrypted_message, address = client_socket.recvfrom(1024)
+            encrypted_message, _ = client_socket.recvfrom(1024)
+            
+            # Retrieve the cyphertext and signature from the payload
+            encrypted_message_len = int.from_bytes(encrypted_message[:4], 'big')  # Get length of ciphertext
+            encrypted_message = encrypted_message[4:4 + encrypted_message_len]  # Extract ciphertext
+            signature = encrypted_message[4 + encrypted_message_len:]  # Extract signature            
+            
+            # 
             
             # Check for new peers
             if decoded_message.startswith('HEARTBEAT:'):  # Check if the message is encrypted
                     new_username = decoded_message.split(':', 1)[1]  # Extract the username from the message
+                    
                     # Add the new peer to list of known peers
                     if new_username not in known_peers:
                         known_peers.add(new_username)
                         print(f"Welcome {new_username} to the chat!")
+                        
             elif not decoded_message.startswith(username + ": "):  # Ignore own messages
                 print(f"\n{decoded_message}")  # Print the message
+                
             else:  # Message is from self, continue
                 continue
                     
@@ -73,7 +84,7 @@ def listen_for_messages():
                 print(f"Error receiving message: {e}")
                 break
         
-def discovery_loop():
+def discovery_loop() -> None:
     ''' Declare discovery loop that checks for new peers, sending name and ed25519 public key '''
     while True:
         try:
@@ -97,6 +108,7 @@ def discovery_loop():
 # Start a thread to listen for incoming messages
 listener_thread = threading.Thread(target=listen_for_messages, daemon=True)
 listener_thread.start()
+
 # Start a thread for the discovery loop
 discovery_thread = threading.Thread(target=discovery_loop, daemon=True)
 discovery_thread.start()
@@ -104,10 +116,12 @@ discovery_thread.start()
 ''' Main loop for sending messages'''
 try:
     while True:
+        # Get the raw message from the user
         raw_message = input(f"{username}: ")
         if raw_message.lower() == 'exit':
             print("Exiting chat...")
             break
+        
         # Add username to message
         raw_formatted_message = f"{username}: {raw_message}"
         
@@ -124,13 +138,15 @@ try:
         except socket.error as e:
             print(f"Error sending payload: {e}")
             break
+        
 except KeyboardInterrupt:
     print("\nExiting chat...")
 
 ''' Safely cleanup the threads and sockes and exit '''
 # Send exit message (no need to encrypt, just a notification)
-exit_message = f"{username} has left the chat."
+exit_message = f"LEAVE: {username} has left the chat."
 client_socket.sendto(exit_message.decode('utf-8'), (config.MCAST_GRP, config.SERVER_PORT))
+
 # Safely cleanup threads and close the socket
 threading.Event().wait(1)  # Safely wait for threads to finish
 client_socket.close()

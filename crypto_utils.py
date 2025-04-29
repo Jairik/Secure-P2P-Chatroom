@@ -4,6 +4,7 @@ import os
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 import config
+from typing import Union, Tuple  # For type hinting
 
 ''' Generating keys and cipher objects for encryption and signing '''
 chacha_private_key = ChaCha20Poly1305.generate_key()  # Generate a secret key for encryption (32 bytes)
@@ -11,24 +12,17 @@ chacha_cipher = ChaCha20Poly1305(chacha_private_key)  # Add key to a CHACHA20 ci
 ed_private_key = Ed25519PrivateKey.generate()  # Generate a private key for signing (32 bytes)
 nonce = None
 
-
-def pack_data(data: str, associated_data: str = None) -> tuple:
+def pack_data(data: str, associated_data: str = None, sign = True) -> Union[bytes, Tuple[bytes, bytes]]:
     ''' Encrypt and add signature to data before sending 
     Returns the encrypted data and signature as tuple of ciphertext bytes '''
-    # Redeclare nonce for each message (to prevent nonce reuse)
-    nonce = os.urandom(config.NONCE_SIZE)
+    nonce = os.urandom(config.NONCE_SIZE)  # Redeclare nonce for each message (to prevent nonce reuse)
     ct = chacha_cipher.encrypt(nonce, data, associated_data)  # Get ciphertext
-    signature = ed_private_key.sign(data)  # Get signature
-    return ct, signature  # Return ciphertext and signature as tuple
+    if sign:  # If signing, return cyphertext and signature
+        signature = ed_private_key.sign(data)  # Get signature
+        return ct, signature  # Return ciphertext and signature as tuple
+    else:  # If not signing, return only ciphertext
+        return ct  # Return only ciphertext as bytes
 
-def pack_data_no_signature(data: str, associated_data: str = None) -> bytes:
-    ''' Encrypt data before sending without signature 
-    Returns the encrypted data as bytes '''
-    # Redeclare nonce for each message (to prevent nonce reuse)
-    nonce = os.urandom(config.NONCE_SIZE)
-    ct = chacha_cipher.encrypt(nonce, data, associated_data)  # Get ciphertext
-    return ct  # Return ciphertext as bytes
-    
 def unpack_data(ct: bytes, associated_data: str = None) -> str:
     ''' Decrypt and authenticate data after receiving
     Returns the decrypted data and signature as a string '''
@@ -39,16 +33,6 @@ def unpack_data(ct: bytes, associated_data: str = None) -> str:
         return None  # Decryption failed, return None
     return raw_data.decode('utf-8')  # Return the decrypted data as a string
 
-def unpack_data_no_signature(ct: bytes, associated_data: str = None) -> str:
-    ''' Decrypt data after receiving without signature 
-    Returns the decrypted data as a string '''
-    try:
-        raw_data = chacha_cipher.decrypt(nonce, ct, associated_data)  # Decrypt the ciphertext
-    except Exception as e:
-        print(f"Decryption failed: {e}")
-        return None  # Decryption failed, return None
-    return raw_data.decode('utf-8')  # Return the decrypted data as a string
-    
 def get_ed_public_key() -> bytes:
     ''' Helper function to get public key of client for signing '''
     return ed_private_key.public_key().public_bytes()
