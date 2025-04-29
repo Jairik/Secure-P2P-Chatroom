@@ -3,8 +3,8 @@
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
-def packageData():
+def pack_data():
     ''' Package and encrypt data for sending '''
     
-def unpackData():
+def unpack_data():
     ''' Unpack and decrypt data after receiving '''

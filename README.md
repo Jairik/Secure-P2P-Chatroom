@@ -22,4 +22,4 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey,
 
 ### LAN Transport
 
-**UDP Broadcast** is serverless, allowing users to deliver messages to all users on LAN (P2P Architecture).
+**UDP Multicast** is serverless, allowing users to deliver messages to all users on LAN (P2P Architecture).
