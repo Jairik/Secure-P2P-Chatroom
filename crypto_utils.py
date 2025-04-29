@@ -12,9 +12,9 @@ ed_private_key = Ed25519PrivateKey.generate()  # Generate a private key for sign
 nonce = None
 
 
-def pack_data(data: str, associated_data: str = None) -> bytes:
+def pack_data(data: str, associated_data: str = None) -> tuple:
     ''' Encrypt and add signature to data before sending 
-    Returns the encrypted data and signature as ciphertext bytes '''
+    Returns the encrypted data and signature as tuple of ciphertext bytes '''
     # Redeclare nonce for each message (to prevent nonce reuse)
     nonce = os.urandom(config.NONCE_SIZE)
     ct = chacha_cipher.encrypt(nonce, data, associated_data)  # Get ciphertext
@@ -30,6 +30,7 @@ def unpack_data(ct: bytes, associated_data: str = None) -> str:
     except Exception as e:
         print(f"Decryption failed: {e}")
         return None  # Decryption failed, return None
+    return raw_data.decode('utf-8')  # Return the decrypted data as a string
     
     
 def get_ed_public_key() -> bytes:
@@ -40,7 +41,7 @@ def verify_signature(public_key_raw: bytes, signature: bytes, data: str) -> bool
     ''' Helper function to verify the signature of the data using the public key '''
     public_key = Ed25519PublicKey.from_public_bytes(public_key_raw)  # Convert raw bytes to public key object
     try:
-        public_key.verify(signature, data)
+        public_key.verify(signature, data)  # Will raise an error if signature is invalid
         return True  # Signature is valid
     except Exception as e:
         print(f"Signature verification failed: {e}")

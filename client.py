@@ -11,14 +11,15 @@ import crypto_utils  # For encryption/decryption methods (not implemented yet)
 
 '''
 ----------------------------------------------------------------------------------
-TODO: update known_peers to include public key for ED25519 signing (for each peer
+TODO: update known_peers to include public key for ED25519 signing (for each peer)
+TODO: integrate encryption/decryption methods (pack_data, unpack_data) into client.py
 ----------------------------------------------------------------------------------
 '''
 
 # Show client connection information
-print(f"Client started... multicast-group={config.MCAST_GRP}:{config.SERVER_PORT}")
+print(f"Connected... multicast-group={config.MCAST_GRP}:{config.SERVER_PORT}")
 
-# Create, connect, and validate UDP socket constant IP and port in config.py
+''' Create UDP socket and bind to multicast group '''
 try:
     # Create socket and allow multiple binds
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)  # create UDP socket
@@ -30,27 +31,29 @@ try:
     client_socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)  # Set socket option to join specified multicast group
     
     print(f"Successfully established connection")
-except socket.error as e:  # Socket creation error, exit
+    
+except socket.error as e:
+    # Socket creation error, exit
     print(f"Failed to connect (socket error): {e}")
     sys.exit(1)
     
-# Get & validate the user's username
+''' Get & validate username'''
 username = input("Enter your username: ").strip()
 if not username:
     print("Username cannot be empty. Exiting...")
     client_socket.close()
     sys.exit(1)
     
-known_peers = set()  # store known peers (other clients)
+known_peers = set()  # declare set to store known peers (other clients)
 
 # Declare listener for messages from other clients
 def listen_for_messages():
+    ''' Listen for incoming messages from other clients,  '''
     while True:
         try:
             message, address = client_socket.recvfrom(1024)  # Receive message from server
-            decoded_message = message.decode('utf-8')  # Retrieve decoded message
-            sender_ip, _ = address # Derive the sender ip from address
             
+            decoded_message = message.decode('utf-8')  # TODO: REMOVE (must decrypt)
             # !! NOTE: Add decryption methods (& signature) here (can be wrapped in unpack_data())
             
             
@@ -73,12 +76,12 @@ def listen_for_messages():
                 print(f"Error receiving message: {e}")
                 break
         
-# Declare discovery loop that checks for new peers
 def discovery_loop():
+    ''' Declare discovery loop that checks for new peers, sending name and ed25519 public key '''
     while True:
         try:
             # Send a discovery message to the broadcast address
-            discovery_message = f"HEARTBEAT:{username}"            
+            discovery_message = f"HEARTBEAT:{username}:{crypto_utils.get_ed_public_key()}"            
             client_socket.sendto(discovery_message.encode('utf-8'), (config.MCAST_GRP, config.SERVER_PORT))
             # Wait for a while before sending the next discovery message
             time.sleep(3)  # Broadcast every 3 seconds
@@ -86,15 +89,15 @@ def discovery_loop():
             print(f"Error in discovery loop: {e}")
             break
 
+''' Assign each function to a thread '''
 # Start a thread to listen for incoming messages
 listener_thread = threading.Thread(target=listen_for_messages, daemon=True)
 listener_thread.start()
-
 # Start a thread for the discovery loop
 discovery_thread = threading.Thread(target=discovery_loop, daemon=True)
 discovery_thread.start()
 
-# Main loop to send messages to the server
+''' Main loop for sending messages'''
 try:
     while True:
         message = input(f"{username}: ")
@@ -116,7 +119,7 @@ except KeyboardInterrupt:
     print("\nExiting chat...")
 
 
-# Safely close the threads and socket, and exit the program
+''' Safely cleanup the threads and sockes and exit '''
 # TODO: Send message through socket to notify exit
-client_socket.close()
 threading.Event().wait(1)  # Safely wait for threads to finish
+client_socket.close()
