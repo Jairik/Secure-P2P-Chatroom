@@ -38,8 +38,7 @@ BUFFER_SIZE = 4096
 
 # CHACHA20 Settings
 KEY_SIZE = 32  # Key size in bytes for CHACHA20
-NONCE_SIZE = 16  # Nonce (Number Used Once) size in bytes for CHACHA20 (for added security)
+NONCE_SIZE = 12  # Nonce (Number Used Once) size in bytes for CHACHA20 (for added security)
 
 # Generate a random key for CHACHA20 encryption
-# NOTE: In a production environment, the keys would be stored. Could implement later.
 CHACHA20_KEY = os.urandom(KEY_SIZE)

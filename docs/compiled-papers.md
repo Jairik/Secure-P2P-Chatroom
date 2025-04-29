@@ -17,6 +17,8 @@
 | **C2** | **Procter – _A Security Analysis of the Composition of ChaCha20 and Poly1305_** (IACR ePrint 2014/613) <br> <https://eprint.iacr.org/2014/613.pdf> | Provides the first formal single-user security proof for ChaCha20-Poly1305, showing tight bounds and highlighting why the straightforward “encrypt-then-MAC” composition is robust. |
 | **C3** | **Degabriele et al. – _The Security of ChaCha20-Poly1305 in the Multi-User Setting_** (IACR ePrint 2023/085) <br> <https://eprint.iacr.org/2023/085.pdf> | Extends the analysis to many-user environments (e.g., the Internet), derives concrete re-keying limits for TLS 1.3/QUIC, and compares the scheme’s security/performance trade-offs with AES-GCM. |
 
+**New One Found**: https://datatracker.ietf.org/doc/html/rfc8439  (ChaCha20 and Poly1305 for IETF Protocols)
+
 ---
 
 ## 2  Ed25519 (Signatures & Identity)
@@ -29,7 +31,7 @@
 
 ---
 
-## 3  UDP Broadcast / NAT Traversal for P2P
+## 3  UDP Broadcast / NAT Traversal for P2P (**IRRELEVANT**, USING *UDP MULTICAST* NOW)
 
 | Ref | Title & Link | One-Sentence Summary |
 |-----|--------------|-----------------------|
@@ -39,12 +41,6 @@
 
 ---
 
-### How this helps your project  
-
-* **ChaCha20-Poly1305 & Ed25519** are available directly in the Python `cryptography` package (`from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305`, `from cryptography.hazmat.primitives.asymmetric import ed25519`) so you can prototype quickly without rolling your own crypto.  
-* **BEP-14 + hole-punching** give you a proven recipe for LAN discovery _and_ global connectivity. Pair U1’s multicast discovery with U2’s UDP hole punching and fallback to a TURN-style relay if both peers sit behind strict symmetric NATs (cf. U3’s comparison tables).  
-
-Feel free to drop any of these straight into your literature review or implementation notes!
-
+* **ChaCha20-Poly1305 & Ed25519** are available directly in the Python `cryptography` package (`from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305`, `from cryptography.hazmat.primitives.asymmetric import ed25519`) so you can prototype quickly without rolling your own crypto.   
 
 [More In Depth Summary](https://chatgpt.com/s/dr_680ce2e042d88191b3222f2274a4a70e)

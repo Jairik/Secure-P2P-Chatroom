@@ -7,7 +7,13 @@ import time
 import struct  # For packing and unpacking binary data and allowing multicasting groups
 import config  # Access constant keys/settings
 import errno  # For error handling
-# import crypto_utils  # For encryption/decryption methods (not implemented yet)
+import crypto_utils  # For encryption/decryption methods (not implemented yet)
+
+'''
+----------------------------------------------------------------------------------
+TODO: update known_peers to include public key for ED25519 signing (for each peer
+----------------------------------------------------------------------------------
+'''
 
 # Show client connection information
 print(f"Client started... multicast-group={config.MCAST_GRP}:{config.SERVER_PORT}")
