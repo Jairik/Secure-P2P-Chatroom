@@ -51,11 +51,8 @@ def listen_for_messages():
     ''' Listen for incoming messages from other clients,  '''
     while True:
         try:
-            message, address = client_socket.recvfrom(1024)  # Receive message from server
-            
-            decoded_message = message.decode('utf-8')  # TODO: REMOVE (must decrypt)
-            # !! NOTE: Add decryption methods (& signature) here (can be wrapped in unpack_data())
-            
+            # Receive message from the multicast group
+            encrypted_message, address = client_socket.recvfrom(1024)
             
             # Check for new peers
             if decoded_message.startswith('HEARTBEAT:'):  # Check if the message is encrypted
@@ -81,10 +78,17 @@ def discovery_loop():
     while True:
         try:
             # Send a discovery message to the broadcast address
-            discovery_message = f"HEARTBEAT:{username}:{crypto_utils.get_ed_public_key()}"            
-            client_socket.sendto(discovery_message.encode('utf-8'), (config.MCAST_GRP, config.SERVER_PORT))
+            raw_discovery_message = f"HEARTBEAT:{username}:{crypto_utils.get_ed_public_key()}"
+            
+            # Encrypt the discovery message
+            encrypted_discovery_message = crypto_utils.pack_data_no_signature(raw_discovery_message)  # Encrypt the message
+            
+            # Send the encrypted discovery message to the multicast group
+            client_socket.sendto(encrypted_discovery_message, (config.MCAST_GRP, config.SERVER_PORT))
+            
             # Wait for a while before sending the next discovery message
             time.sleep(3)  # Broadcast every 3 seconds
+            
         except Exception as e:
             print(f"Error in discovery loop: {e}")
             break
@@ -100,26 +104,33 @@ discovery_thread.start()
 ''' Main loop for sending messages'''
 try:
     while True:
-        message = input(f"{username}: ")
-        if message.lower() == 'exit':
+        raw_message = input(f"{username}: ")
+        if raw_message.lower() == 'exit':
             print("Exiting chat...")
             break
         # Add username to message
-        message = f"{username}: {message}"
+        raw_formatted_message = f"{username}: {raw_message}"
         
-        # !! NOTE: Add encryption methods (& signature) here (can be wrapped in pack_data())
-            
-            
+        # Encryption methods & retrieve signature
+        encrypted_message, signature = crypto_utils.pack_data(raw_formatted_message)
+        
+        # Combine encrypted message and signature into a single payload
+        encrypted_message_len = len(encrypted_message).to_bytes(4, 'big')  # Get length of ciphertext
+        payload = encrypted_message_len + encrypted_message + signature  # Combine length, ciphertext, and signature
+        
+        # Send the payload to the multicast group over UDP socket
         try:
-            client_socket.sendto(message.encode('utf-8'), (config.MCAST_GRP, config.SERVER_PORT))
+            client_socket.sendto(payload, (config.MCAST_GRP, config.SERVER_PORT))
         except socket.error as e:
-            print(f"Error sending message: {e}")
+            print(f"Error sending payload: {e}")
             break
 except KeyboardInterrupt:
     print("\nExiting chat...")
 
-
 ''' Safely cleanup the threads and sockes and exit '''
-# TODO: Send message through socket to notify exit
+# Send exit message (no need to encrypt, just a notification)
+exit_message = f"{username} has left the chat."
+client_socket.sendto(exit_message.decode('utf-8'), (config.MCAST_GRP, config.SERVER_PORT))
+# Safely cleanup threads and close the socket
 threading.Event().wait(1)  # Safely wait for threads to finish
 client_socket.close()

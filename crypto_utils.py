@@ -19,8 +19,15 @@ def pack_data(data: str, associated_data: str = None) -> tuple:
     nonce = os.urandom(config.NONCE_SIZE)
     ct = chacha_cipher.encrypt(nonce, data, associated_data)  # Get ciphertext
     signature = ed_private_key.sign(data)  # Get signature
-    # Return somehow
-    
+    return ct, signature  # Return ciphertext and signature as tuple
+
+def pack_data_no_signature(data: str, associated_data: str = None) -> bytes:
+    ''' Encrypt data before sending without signature 
+    Returns the encrypted data as bytes '''
+    # Redeclare nonce for each message (to prevent nonce reuse)
+    nonce = os.urandom(config.NONCE_SIZE)
+    ct = chacha_cipher.encrypt(nonce, data, associated_data)  # Get ciphertext
+    return ct  # Return ciphertext as bytes
     
 def unpack_data(ct: bytes, associated_data: str = None) -> str:
     ''' Decrypt and authenticate data after receiving
@@ -31,7 +38,16 @@ def unpack_data(ct: bytes, associated_data: str = None) -> str:
         print(f"Decryption failed: {e}")
         return None  # Decryption failed, return None
     return raw_data.decode('utf-8')  # Return the decrypted data as a string
-    
+
+def unpack_data_no_signature(ct: bytes, associated_data: str = None) -> str:
+    ''' Decrypt data after receiving without signature 
+    Returns the decrypted data as a string '''
+    try:
+        raw_data = chacha_cipher.decrypt(nonce, ct, associated_data)  # Decrypt the ciphertext
+    except Exception as e:
+        print(f"Decryption failed: {e}")
+        return None  # Decryption failed, return None
+    return raw_data.decode('utf-8')  # Return the decrypted data as a string
     
 def get_ed_public_key() -> bytes:
     ''' Helper function to get public key of client for signing '''
