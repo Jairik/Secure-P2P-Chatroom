@@ -13,8 +13,8 @@ BUFFER_SIZE = 4096
 KEY_SIZE = 32  # Key size in bytes for CHACHA20
 NONCE_SIZE = 12  # Nonce (Number Used Once) size in bytes for CHACHA20 (for added security)
 
-# Generate a random key for CHACHA20 encryption
-CHACHA20_KEY = os.urandom(KEY_SIZE)
+# Generate a random key for CHACHA20 encryption, shared by all clients
+SHARED_CHACHA20_KEY = b'\x01' * 32  # Would be distrbuted securely in production
 
 # Literal null byte declaration for consistency
 NULL_BYTE = b'\x00'

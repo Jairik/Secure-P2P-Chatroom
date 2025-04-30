@@ -90,7 +90,7 @@ def listen_for_messages() -> None:
             # LEAVE: Remove the username and public key from the known peers list
             elif message_type == "LEAVE":
                 # Decrypt the username 
-                decrypted_username = crypto_utils.unpack_data(encrypted_message, nonce)
+                decrypted_username = encrypted_message.decode('utf-8')
                 print(f"{decrypted_username} has left the chat.")
                 
                 # Remove the username-public key pair from the known peers list
@@ -170,10 +170,8 @@ except KeyboardInterrupt:
     print("\nExiting chat...")
 
 ''' Safely cleanup the threads and sockets '''
-# Send exit message (no need to encrypt, just a notification)
+# Send exit message (no need to encrypt, just a notification) & perform safe cleanup
+threading.Event().wait(1)  # Safely wait for threads to finish
 payload = pickle.dumps(("LEAVE", username.encode('utf-8'), config.NULL_BYTE, config.NULL_BYTE, config.NULL_BYTE))
 client_socket.sendto(payload, (config.MCAST_GRP, config.MCAST_PORT))
-
-# Safely cleanup threads and close the socket
-threading.Event().wait(1)  # Safely wait for threads to finish
 client_socket.close()
