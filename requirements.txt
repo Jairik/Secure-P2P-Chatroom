@@ -1,3 +1,2 @@
-psutil
-ipaddress
 cryptography
+pickles

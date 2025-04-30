@@ -1,14 +1,16 @@
-''' Client Program to join the UDP broadcast, acting as a P2P client. '''
+''' Client Program to participate in the UDP multicast, acting as a P2P client. '''
 
 import socket
 import threading
 import sys
 import time
 import struct  # For packing and unpacking binary data and allowing multicasting groups
-import config  # Access constant keys/settings
 import errno  # For error handling
-import crypto_utils  # For encryption/decryption methods
 import pickle  # For serializing and deserializing objects
+
+import config  # Access constant keys/settings
+import crypto_utils  # For encryption/decryption methods
+
 
 
 # Show client connection information
