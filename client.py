@@ -79,9 +79,8 @@ def listen_for_messages() -> None:
             # JOIN: Add the new username and public key to the known peers list
             elif message_type == "JOIN":
                 # Decrypt the message to get the username and public key
-                decrypted_message = crypto_utils.unpack_data(encrypted_message, nonce)
+                new_username = crypto_utils.unpack_data(encrypted_message, nonce)
                 decrypted_public_key = crypto_utils.unpack_data(signature, sig_nonce, isKey=True)
-                new_username = decrypted_message.trim()  # Extract the username from the message
                 
                 # Add the new peer to list of known peers
                 if new_username not in known_peers:
@@ -117,8 +116,8 @@ def discovery_loop() -> None:
     while True:
         try:
             # Encrypt the username and public key
-            encrypted_discovery_username, username_nonce = crypto_utils.pack_data(username.encode('utf-8'))
-            encrypted_ed_public_key, public_key_nonce = crypto_utils.pack_data(crypto_utils.get_ed_public_key())
+            encrypted_discovery_username, username_nonce = crypto_utils.pack_data(username.encode('utf-8'), sign=False)  # No signature
+            encrypted_ed_public_key, public_key_nonce = crypto_utils.pack_data(crypto_utils.get_ed_public_key(), sign=False)  # No signature
             
             # Combine message type, encrypted username, and encrypted public key into a single payload with pickle
             payload = pickle.dumps(("JOIN", encrypted_discovery_username, username_nonce, encrypted_ed_public_key, public_key_nonce))
@@ -158,7 +157,7 @@ try:
         encrypted_message, message_nonce, signature = crypto_utils.pack_data(raw_formatted_message.encode('utf-8'))
         
         # Combine message type, encrypted message, and signature into a single payload with pickle
-        payload = pickle.dumps(("CHAT", encrypted_message, message_nonce, signature, None))
+        payload = pickle.dumps(("CHAT", encrypted_message, message_nonce, signature, config.NULL_BYTE))
         
         # Send the payload to the multicast group over UDP socket
         try:
@@ -172,7 +171,7 @@ except KeyboardInterrupt:
 
 ''' Safely cleanup the threads and sockets '''
 # Send exit message (no need to encrypt, just a notification)
-payload = pickle.dumps(("LEAVE", username.encode('utf-8'), None, None))
+payload = pickle.dumps(("LEAVE", username.encode('utf-8'), config.NULL_BYTE, config.NULL_BYTE, config.NULL_BYTE))
 client_socket.sendto(payload, (config.MCAST_GRP, config.MCAST_PORT))
 
 # Safely cleanup threads and close the socket

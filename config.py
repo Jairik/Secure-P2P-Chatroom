@@ -15,3 +15,6 @@ NONCE_SIZE = 12  # Nonce (Number Used Once) size in bytes for CHACHA20 (for adde
 
 # Generate a random key for CHACHA20 encryption
 CHACHA20_KEY = os.urandom(KEY_SIZE)
+
+# Literal null byte declaration for consistency
+NULL_BYTE = b'\x00'
