@@ -40,34 +40,48 @@ if not username:
     print("Username cannot be empty. Exiting...")
     client_socket.close()
     sys.exit(1)
-    
+
 known_peers = dict()  # Declare dictionary to map known peer usernames to public keys for message signatures (verification)
 
 # Declare listener for messages from other clients
 def listen_for_messages() -> None:
-    ''' Listen for incoming messages from other clients,  '''
+    ''' Listen for incoming messages from other clients, handling based on received message type '''
     while True:
         try:
             # Receive message from the multicast group
             payload, _ = client_socket.recvfrom(config.BUFFER_SIZE)
             
-            # Retrieve the message type, cyphertext, & signature (or public key) from the payload with pickle
-            message_type, encrypted_message, signature = pickle.loads(payload)
+            # Retrieve the message type, cyphertext, nonce, signature or public key, and 
+            # public key nonce (if applicable) from the payload with pickle
+            message_type, encrypted_message, nonce, signature, sig_nonce = pickle.loads(payload)
             
             ''' Determine behavior based on unencrypted message type '''
             # CHAT: Unencrypt the payload, verify signature, and print the message
             if message_type == "CHAT":
                 # Decrypt the message and print
-                raw_received_message = crypto_utils.unpack_data(encrypted_message)
+                raw_received_message = crypto_utils.unpack_data(encrypted_message, nonce)
                 if not raw_received_message.startswith(username + ": "):  # Ignoring own messages
-                    pass # NOTE: will determine signatures verification once public keys are added to known_peers
+                    # Verify the signature using the public key of the sender
+                    sender_username = raw_received_message.split(": ")[0]
+                    
+                    # If the username is not yet stored, client hasn't caught name from discovery loop yet, so skip
+                    if sender_username not in known_peers:
+                        continue
+                    
+                    # Compare the sent signature with the stored public key of the sender
+                    elif crypto_utils.verify_signature(known_peers[sender_username], signature, raw_received_message.encode('utf-8')):
+                        print(f"{raw_received_message}")  # Print the message if signature is valid
+                    
+                    # Signature verification failed. 
+                    else:
+                        continue  # Custom handling could be added for this
                 
             # JOIN: Add the new username and public key to the known peers list
             elif message_type == "JOIN":
                 # Decrypt the message to get the username and public key
-                decrypted_message = crypto_utils.unpack_data(encrypted_message)
-                decrypted_public_key = crypto_utils.unpack_data(signature)
-                new_username = decrypted_message.split(':', 1)[1]  # Extract the username from the message
+                decrypted_message = crypto_utils.unpack_data(encrypted_message, nonce)
+                decrypted_public_key = crypto_utils.unpack_data(signature, sig_nonce, isKey=True)
+                new_username = decrypted_message.trim()  # Extract the username from the message
                 
                 # Add the new peer to list of known peers
                 if new_username not in known_peers:
@@ -77,7 +91,7 @@ def listen_for_messages() -> None:
             # LEAVE: Remove the username and public key from the known peers list
             elif message_type == "LEAVE":
                 # Decrypt the username 
-                decrypted_username = crypto_utils.unpack_data(encrypted_message)
+                decrypted_username = crypto_utils.unpack_data(encrypted_message, nonce)
                 print(f"{decrypted_username} has left the chat.")
                 
                 # Remove the username-public key pair from the known peers list
@@ -91,23 +105,23 @@ def listen_for_messages() -> None:
                 print(f"Unknown message type: {message_type}")
                 continue
                     
-        except Exception as e:
+        except OSError as e:
             if e.errno == errno.EBADF:
                 pass  # Ignore bad file descriptor error (socket closed)
-            else:
-                print(f"Error receiving message: {e}")
-                break
+        except Exception as e:
+            print(f"Error receiving message: {e}")
+            break
         
 def discovery_loop() -> None:
     ''' Declare discovery loop that checks for new peers, sending encrypted name and ed25519 public key '''
     while True:
         try:
             # Encrypt the username and public key
-            encrypted_discovery_username = crypto_utils.pack_data({username})
-            encrypted_ed_public_key = crypto_utils.pack_data(crypto_utils.get_ed_public_key())
+            encrypted_discovery_username, username_nonce = crypto_utils.pack_data(username.encode('utf-8'))
+            encrypted_ed_public_key, public_key_nonce = crypto_utils.pack_data(crypto_utils.get_ed_public_key())
             
             # Combine message type, encrypted username, and encrypted public key into a single payload with pickle
-            payload = pickle.dumps(("JOIN", encrypted_discovery_username, encrypted_ed_public_key))
+            payload = pickle.dumps(("JOIN", encrypted_discovery_username, username_nonce, encrypted_ed_public_key, public_key_nonce))
             
             # Send the encrypted discovery message to the multicast group
             client_socket.sendto(payload, (config.MCAST_GRP, config.MCAST_PORT))
@@ -141,10 +155,10 @@ try:
         raw_formatted_message = f"{username}: {raw_message}"
         
         # Encryption methods & retrieve signature
-        encrypted_message, signature = crypto_utils.pack_data(raw_formatted_message)
+        encrypted_message, message_nonce, signature = crypto_utils.pack_data(raw_formatted_message.encode('utf-8'))
         
         # Combine message type, encrypted message, and signature into a single payload with pickle
-        payload = pickle.dumps(("CHAT", encrypted_message, signature))
+        payload = pickle.dumps(("CHAT", encrypted_message, message_nonce, signature, None))
         
         # Send the payload to the multicast group over UDP socket
         try:
@@ -158,7 +172,7 @@ except KeyboardInterrupt:
 
 ''' Safely cleanup the threads and sockets '''
 # Send exit message (no need to encrypt, just a notification)
-payload = pickle.dumps(("LEAVE", {username}.encode('utf-8'), None))
+payload = pickle.dumps(("LEAVE", username.encode('utf-8'), None, None))
 client_socket.sendto(payload, (config.MCAST_GRP, config.MCAST_PORT))
 
 # Safely cleanup threads and close the socket

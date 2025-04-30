@@ -3,6 +3,7 @@
 import os
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
+from cryptography.hazmat.primitives import serialization
 import config
 from typing import Union, Tuple  # For type hinting
 
@@ -10,20 +11,19 @@ from typing import Union, Tuple  # For type hinting
 chacha_private_key = ChaCha20Poly1305.generate_key()  # Generate a secret key for encryption (32 bytes)
 chacha_cipher = ChaCha20Poly1305(chacha_private_key)  # Add key to a CHACHA20 cipher object
 ed_private_key = Ed25519PrivateKey.generate()  # Generate a private key for signing (32 bytes)
-nonce = None
 
-def pack_data(data: str, associated_data: str = None, sign = True) -> Union[bytes, Tuple[bytes, bytes]]:
+def pack_data(data: bytes, associated_data: bytes = None, sign: bool = True, nonce: bytes = None) -> Union[Tuple[bytes, bytes], Tuple[bytes, bytes, bytes]]:
     ''' Encrypt and add signature to data before sending 
-    Returns the encrypted data and signature as tuple of ciphertext bytes '''
-    nonce = os.urandom(config.NONCE_SIZE)  # Redeclare nonce for each message (to prevent nonce reuse)
+    Returns the encrypted data, nonce, and signature (optionally) as tuple of ciphertext bytes '''
+    if nonce == None: nonce = os.urandom(config.NONCE_SIZE)  # Redeclare nonce for each message (to prevent nonce reuse)
     ct = chacha_cipher.encrypt(nonce, data, associated_data)  # Get ciphertext
     if sign:  # If signing, return cyphertext and signature
         signature = ed_private_key.sign(data)  # Get signature
-        return ct, signature  # Return ciphertext and signature as tuple
+        return ct, nonce, signature  # Return ciphertext and signature as tuple
     else:  # If not signing, return only ciphertext
-        return ct  # Return only ciphertext as bytes
+        return ct, nonce  # Return only ciphertext as bytes
 
-def unpack_data(ct: bytes, associated_data: str = None) -> str:
+def unpack_data(ct: bytes, nonce: bytes, associated_data: str = None, isKey: bool = False) -> Union[str, bytes]:
     ''' Decrypt and authenticate data after receiving
     Returns the decrypted data and signature as a string '''
     try:
@@ -31,11 +31,16 @@ def unpack_data(ct: bytes, associated_data: str = None) -> str:
     except Exception as e:
         print(f"Decryption failed: {e}")
         return None  # Decryption failed, return None
-    return raw_data.decode('utf-8')  # Return the decrypted data as a string
+    if not isKey:
+        raw_data: str = raw_data.decode('utf-8')  # Decode bytes to string if not a key
+    return raw_data
 
 def get_ed_public_key() -> bytes:
     ''' Helper function to get public key of client for signing '''
-    return ed_private_key.public_key().public_bytes()
+    return ed_private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,  # Raw bytes encoding
+        format=serialization.PublicFormat.Raw  # Raw public key format
+    )
 
 def verify_signature(public_key_raw: bytes, signature: bytes, data: str) -> bool:
     ''' Helper function to verify the signature of the data using the public key '''
@@ -44,5 +49,5 @@ def verify_signature(public_key_raw: bytes, signature: bytes, data: str) -> bool
         public_key.verify(signature, data)  # Will raise an error if signature is invalid
         return True  # Signature is valid
     except Exception as e:
-        print(f"Signature verification failed: {e}")
+        # print(f"Signature verification failed: {e}")  # Custom handling could be used for this
         return False  # Signature is invalid
