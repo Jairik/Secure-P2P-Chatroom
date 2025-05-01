@@ -11,40 +11,90 @@ import pickle  # For serializing and deserializing objects
 import config  # Access constant keys/settings
 import crypto_utils  # For encryption/decryption methods
 
+import dearpygui.dearpygui as dpg
+dpg.create_context()
+client_socket = None
+username = ""
 
+def set_mode(mode):
+    global username
+    if(mode == "messaging"):
+        with dpg.item_handler_registry(tag="submit-message-handler") as handler:
+            dpg.add_item_clicked_handler(callback=on_message_submit)
+        dpg.delete_item("username-submission")
+        
+        dpg.set_value("my-username", "my username: " + username)
+        dpg.add_input_text(tag="msg-input", parent="messaging", width=200, pos=(50, 500))
+        dpg.add_button(label="Send", tag="send-msg", parent="messaging", pos=(300, 500))
+        dpg.bind_item_handler_registry("send-msg", "submit-message-handler")
+        dpg.set_viewport_width(600)
+        dpg.set_viewport_height(600)
+        dpg.set_item_width("Window", 600)
+        dpg.set_item_height("Window", 600)
+        dpg.show_item("messaging")
 
-# Show client connection information
-print(f"Connected... multicast-group={config.MCAST_GRP}:{config.MCAST_PORT}")
+def create_ui():
+    
+    dpg.create_viewport(title='Custom Title', width=600, height=300)
 
-''' Create UDP socket and bind to multicast group '''
-try:
-    # Create socket and allow multiple binds
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)  # create UDP socket
-    client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Enable reuse of address
-    client_socket.bind(('', config.MCAST_PORT))  # Bind to all interfaces on the port
-    
-    # Tell the socket to join the multicast group
-    mreq = struct.pack("4sl", socket.inet_aton(config.MCAST_GRP), socket.INADDR_ANY)  # Creating a special packed structure to determine group
-    client_socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)  # Set socket option to join specified multicast group
-    
-    print(f"Successfully established connection")
-    
-except socket.error as e:
-    # Socket creation error, exit
-    print(f"Failed to connect (socket error): {e}")
-    sys.exit(1)
-    
-''' Get & validate username'''
-username = input("Enter your username: ").strip()
-if not username:
-    print("Username cannot be empty. Exiting...")
-    client_socket.close()
-    sys.exit(1)
+    with dpg.item_handler_registry(tag="submit-name-handler") as handler:
+        dpg.add_item_clicked_handler(callback=on_name_submit)
 
-known_peers = dict()  # Declare dictionary to map known peer usernames to public keys for message signatures (verification)
+    with dpg.window(tag="Window", width=600, height=300):
+        with dpg.group(tag="username-submission"):
+            # Show client connection information
+            dpg.add_text(f"Connected... multicast-group={config.MCAST_GRP}:{config.MCAST_PORT}")
+            dpg.add_text(tag="conn-status")
+            dpg.add_text("Enter Username:")
+            dpg.add_text(tag="username-help")
+            dpg.add_input_text(tag="input-username")
+            dpg.add_button(label="Submit", tag="submit-name")
+        with dpg.group(tag="messaging", show=False):
+            dpg.add_text(tag="my-username", parent="messaging")
+            with dpg.child_window(tag="msg-log", width=-1, height=400, autosize_x=True):
+                pass
+            pass
+
+    dpg.bind_item_handler_registry("submit-name", "submit-name-handler")
+
+    dpg.setup_dearpygui()
+    dpg.show_viewport()
+    dpg.set_primary_window("Window", True)
+    dpg.start_dearpygui()
+    
+def create_udp_socket():
+    global client_socket
+    ''' Create UDP socket and bind to multicast group '''
+    try:
+        # Create socket and allow multiple binds
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)  # create UDP socket
+        client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Enable reuse of address
+        client_socket.bind(('', config.MCAST_PORT))  # Bind to all interfaces on the port
+        
+        # Tell the socket to join the multicast group
+        mreq = struct.pack("4sl", socket.inet_aton(config.MCAST_GRP), socket.INADDR_ANY)  # Creating a special packed structure to determine group
+        client_socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)  # Set socket option to join specified multicast group
+        
+        dpg.set_value("conn-status", f"Connection successfully established")
+    
+    except socket.error as e:
+        # Socket creation error, exit
+        dpg.set_value("conn-status", f"Failed to connect (socket error): {e}")
+
+def on_name_submit():
+    global listener_thread, discovery_thread, username
+    temp_username = dpg.get_value("input-username")
+    if temp_username != "":
+        username = temp_username
+        set_mode("messaging")
+        listener_thread.start()
+        discovery_thread.start()
+    else:
+        dpg.set_value("username-help", "Username cannot be empty")
 
 # Declare listener for messages from other clients
 def listen_for_messages() -> None:
+    global client_socket
     ''' Listen for incoming messages from other clients, handling based on received message type '''
     while True:
         try:
@@ -70,7 +120,7 @@ def listen_for_messages() -> None:
                     
                     # Compare the sent signature with the stored public key of the sender
                     elif crypto_utils.verify_signature(known_peers[sender_username], signature, raw_received_message.encode('utf-8')):
-                        print(f"{raw_received_message}")  # Print the message if signature is valid
+                        log_message(f"{raw_received_message}")  # Print the message if signature is valid
                     
                     # Signature verification failed. 
                     else:
@@ -85,13 +135,13 @@ def listen_for_messages() -> None:
                 # Add the new peer to list of known peers
                 if new_username not in known_peers:
                     known_peers[new_username] = decrypted_public_key  # Store the public key in dict for signing
-                    print(f"Welcome {new_username} to the chat!")
+                    log_message(f"Welcome {new_username} to the chat!")
                         
             # LEAVE: Remove the username and public key from the known peers list
             elif message_type == "LEAVE":
                 # Decrypt the username 
                 decrypted_username = encrypted_message.decode('utf-8')
-                print(f"{decrypted_username} has left the chat.")
+                log_message(f"{decrypted_username} has left the chat.")
                 
                 # Remove the username-public key pair from the known peers list
                 if decrypted_username in known_peers:
@@ -101,17 +151,18 @@ def listen_for_messages() -> None:
                         pass  # Shouldn't ever happen, but catch common KeyError just in case
                 
             else:  # Invalid Message Type
-                print(f"Unknown message type: {message_type}")
+                log_message(f"Unknown message type: {message_type}")
                 continue
                     
         except OSError as e:
             if e.errno == errno.EBADF:
                 pass  # Ignore bad file descriptor error (socket closed)
         except Exception as e:
-            print(f"Error receiving message: {e}")
+            log_message(f"Error receiving message: {e}")
             break
         
 def discovery_loop() -> None:
+    global client_socket
     ''' Declare discovery loop that checks for new peers, sending encrypted name and ed25519 public key '''
     while True:
         try:
@@ -132,46 +183,32 @@ def discovery_loop() -> None:
             print(f"Error in discovery loop: {e}")
             break
 
-''' Assign each function to a thread '''
-# Start a thread to listen for incoming messages
+def log_message(message):
+    dpg.add_text(message, parent="msg-log")
+
+def on_message_submit():
+    # Add username to message
+    raw_message = dpg.get_value("msg-input")
+    raw_formatted_message = f"{username}: {raw_message}"
+    log_message(raw_formatted_message)
+    # Encryption methods & retrieve signature
+    encrypted_message, message_nonce, signature = crypto_utils.pack_data(raw_formatted_message.encode('utf-8'))
+    
+    # Combine message type, encrypted message, and signature into a single payload with pickle
+    payload = pickle.dumps(("CHAT", encrypted_message, message_nonce, signature, config.NULL_BYTE))
+    
+    # Send the payload to the multicast group over UDP socket
+    try:
+        client_socket.sendto(payload, (config.MCAST_GRP, config.MCAST_PORT))
+    except socket.error as e:
+        print(f"Error sending payload: {e}")
+            
+
+known_peers = dict()  # Declare dictionary to map known peer usernames to public keys for message signatures (verification)
+
+ui_thread = threading.Thread(target=create_ui)
 listener_thread = threading.Thread(target=listen_for_messages, daemon=True)
-listener_thread.start()
-
-# Start a thread for the discovery loop
 discovery_thread = threading.Thread(target=discovery_loop, daemon=True)
-discovery_thread.start()
 
-''' Main loop for sending messages'''
-try:
-    while True:
-        # Get the raw message from the user
-        raw_message = input(f"{username}: ")
-        if raw_message.lower() == 'exit':
-            print("Exiting chat...")
-            break
-        
-        # Add username to message
-        raw_formatted_message = f"{username}: {raw_message}"
-        
-        # Encryption methods & retrieve signature
-        encrypted_message, message_nonce, signature = crypto_utils.pack_data(raw_formatted_message.encode('utf-8'))
-        
-        # Combine message type, encrypted message, and signature into a single payload with pickle
-        payload = pickle.dumps(("CHAT", encrypted_message, message_nonce, signature, config.NULL_BYTE))
-        
-        # Send the payload to the multicast group over UDP socket
-        try:
-            client_socket.sendto(payload, (config.MCAST_GRP, config.MCAST_PORT))
-        except socket.error as e:
-            print(f"Error sending payload: {e}")
-            break
-        
-except KeyboardInterrupt:
-    print("\nExiting chat...")
-
-''' Safely cleanup the threads and sockets '''
-# Send exit message (no need to encrypt, just a notification) & perform safe cleanup
-threading.Event().wait(1)  # Safely wait for threads to finish
-payload = pickle.dumps(("LEAVE", username.encode('utf-8'), config.NULL_BYTE, config.NULL_BYTE, config.NULL_BYTE))
-client_socket.sendto(payload, (config.MCAST_GRP, config.MCAST_PORT))
-client_socket.close()
+ui_thread.start()
+create_udp_socket()
