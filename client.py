@@ -96,7 +96,6 @@ def on_name_submit():
 # Declare listener for messages from other clients
 def listen_for_messages() -> None:
     global client_socket
-    global client_socket
     ''' Listen for incoming messages from other clients, handling based on received message type '''
     while True:
         try:
@@ -123,7 +122,6 @@ def listen_for_messages() -> None:
                     # Compare the sent signature with the stored public key of the sender
                     elif crypto_utils.verify_signature(known_peers[sender_username], signature, raw_received_message.encode('utf-8')):
                         log_message(f"{raw_received_message}")  # Print the message if signature is valid
-                        log_message(f"{raw_received_message}")  # Print the message if signature is valid
                     
                     # Signature verification failed. 
                     else:
@@ -139,13 +137,11 @@ def listen_for_messages() -> None:
                 if new_username not in known_peers:
                     known_peers[new_username] = decrypted_public_key  # Store the public key in dict for signing
                     log_message(f"Welcome {new_username} to the chat!")
-                    log_message(f"Welcome {new_username} to the chat!")
                         
             # LEAVE: Remove the username and public key from the known peers list
             elif message_type == "LEAVE":
                 # Decrypt the username 
                 decrypted_username = encrypted_message.decode('utf-8')
-                log_message(f"{decrypted_username} has left the chat.")
                 log_message(f"{decrypted_username} has left the chat.")
                 
                 # Remove the username-public key pair from the known peers list
@@ -157,7 +153,6 @@ def listen_for_messages() -> None:
                 
             else:  # Invalid Message Type
                 log_message(f"Unknown message type: {message_type}")
-                log_message(f"Unknown message type: {message_type}")
                 continue
                     
         except OSError as e:
@@ -165,11 +160,9 @@ def listen_for_messages() -> None:
                 pass  # Ignore bad file descriptor error (socket closed)
         except Exception as e:
             log_message(f"Error receiving message: {e}")
-            log_message(f"Error receiving message: {e}")
             break
         
 def discovery_loop() -> None:
-    global client_socket
     global client_socket
     ''' Declare discovery loop that checks for new peers, sending encrypted name and ed25519 public key '''
     while True:
@@ -201,7 +194,6 @@ def on_message_submit():
 
     if(raw_message != ""):
         raw_formatted_message = f"{username}: {raw_message}"
-        log_message(raw_formatted_message)
         # Encryption methods & retrieve signature
         encrypted_message, message_nonce, signature = crypto_utils.pack_data(raw_formatted_message.encode('utf-8'))
         
@@ -219,8 +211,6 @@ def send_leave_message():
     payload = pickle.dumps(("LEAVE", username.encode('utf-8'), config.NULL_BYTE, config.NULL_BYTE, config.NULL_BYTE))
     client_socket.sendto(payload, (config.MCAST_GRP, config.MCAST_PORT))
     client_socket.close()
-    
-
             
 dpg.create_context()
 
